@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
+  <meta name="fc:frame" content="vNext">
+  <meta name="base:app_id" content="[WILL BE ADDED LATER]">
+  <meta name="og:title" content="Base Check-In">
+  <meta name="og:description" content="Daily proof of human for Base wallet users">
+  <title>Base Check-In</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">✓</div>
+        <h1>Base Check-In</h1>
+      </div>
+      <p class="tagline">Daily proof of human</p>
+    </header>
+
+    <main id="main-content">
+      <!-- Connect Screen -->
+      <section id="connect-screen" class="screen active">
+        <div class="connect-card">
+          <div class="connect-icon">🔗</div>
+          <h2>Connect Your Wallet</h2>
+          <p>Link your Base wallet to start your daily check-in streak</p>
+          <button id="connect-btn" class="btn btn-primary">Connect Wallet</button>
+        </div>
+      </section>
+
+      <!-- Dashboard Screen -->
+      <section id="dashboard-screen" class="screen">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-value" id="streak-value">0</span>
+            <span class="stat-label">Day Streak</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="total-value">0</span>
+            <span class="stat-label">Total Days</span>
+          </div>
+        </div>
+
+        <div class="status-card" id="status-card">
+          <div class="status-icon" id="status-icon">○</div>
+          <p class="status-text" id="status-text">Loading...</p>
+        </div>
+
+        <button id="checkin-btn" class="btn btn-primary btn-large">Check In Now</button>
+
+        <div class="wallet-info">
+          <span id="wallet-address">0x...</span>
+          <button id="disconnect-btn" class="btn btn-ghost">Disconnect</button>
+        </div>
+
+        <div class="calendar-section">
+          <h3>Check-In Calendar</h3>
+          <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
+
+        <button id="share-btn" class="btn btn-secondary">Share on Farcaster</button>
+      </section>
+
+      <!-- Profile Screen -->
+      <section id="profile-screen" class="screen">
+        <div class="profile-card">
+          <h2>User Profile</h2>
+          <div class="profile-wallet" id="profile-wallet">0x...</div>
+          <div class="profile-stats">
+            <div class="profile-stat">
+              <span class="profile-stat-value" id="profile-streak">0</span>
+              <span class="profile-stat-label">Streak</span>
+            </div>
+            <div class="profile-stat">
+              <span class="profile-stat-value" id="profile-total">0</span>
+              <span class="profile-stat-label">Total Days</span>
+            </div>
+          </div>
+          <div class="profile-last-checkin">
+            Last check-in: <span id="profile-last-date">Never</span>
+          </div>
+          <div id="profile-calendar" class="calendar-grid"></div>
+        </div>
+      </section>
+
+      <!-- Streak Card Preview -->
+      <div id="streak-card-modal" class="modal">
+        <div class="modal-content">
+          <h2 class="modal-title">Your Streak Card</h2>
+          <canvas id="streak-card-canvas" width="600" height="400"></canvas>
+          <p class="modal-hint">Save or copy your streak card, then share!</p>
+          <div class="modal-actions">
+            <div class="modal-actions-row">
+              <button id="copy-card-btn" class="btn btn-secondary btn-half">Copy</button>
+              <button id="download-card-btn" class="btn btn-secondary btn-half">Save</button>
+              <button id="open-card-btn" class="btn btn-secondary btn-half">Open</button>
+            </div>
+            <button id="share-card-btn" class="btn btn-primary">Share on Farcaster</button>
+            <button id="close-modal-btn" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>Built on Base • No tokens • No payments</p>
+    </footer>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
+

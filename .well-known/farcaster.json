@@ -1,0 +1,21 @@
+{
+  "accountAssociation": {
+    "header": "[PLACEHOLDER_HEADER]",
+    "payload": "[PLACEHOLDER_PAYLOAD]",
+    "signature": "[PLACEHOLDER_SIGNATURE]"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Base Check-In",
+    "subtitle": "Daily proof of human",
+    "description": "A daily Base wallet check-in to build streaks and prove you are real",
+    "primaryCategory": "social",
+    "tags": ["base", "identity", "daily", "farcaster"],
+    "tagline": "Check in every day",
+    "iconUrl": "https://[DOMAIN]/icon.png",
+    "homeUrl": "https://[DOMAIN]/",
+    "splashImageUrl": "https://[DOMAIN]/preview.png",
+    "splashBackgroundColor": "#0052FF"
+  }
+}
+

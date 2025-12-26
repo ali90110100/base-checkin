@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base Check-In - Icon Generator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      color: #0052FF;
+    }
+    
+    .icon-section {
+      background: #1a1a24;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 32px;
+    }
+    
+    .icon-section h2 {
+      margin-bottom: 24px;
+      font-size: 18px;
+      color: #a0a0b0;
+    }
+    
+    .canvas-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    canvas {
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 82, 255, 0.2);
+    }
+    
+    .btn {
+      background: #0052FF;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .btn:hover {
+      background: #3373FF;
+    }
+    
+    .info {
+      font-size: 14px;
+      color: #606070;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Base Check-In Icon Generator</h1>
+    
+    <div class="icon-section">
+      <h2>App Icon (200×200)</h2>
+      <div class="canvas-container">
+        <canvas id="icon-canvas" width="200" height="200"></canvas>
+        <button class="btn" onclick="downloadIcon()">Download icon.png</button>
+        <p class="info">Use this as your Mini App icon</p>
+      </div>
+    </div>
+    
+    <div class="icon-section">
+      <h2>Preview Image (600×400)</h2>
+      <div class="canvas-container">
+        <canvas id="preview-canvas" width="600" height="400"></canvas>
+        <button class="btn" onclick="downloadPreview()">Download preview.png</button>
+        <p class="info">Use this as your Open Graph / social preview image</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Base blue color
+    const BASE_BLUE = '#0052FF';
+    const BASE_BLUE_DARK = '#0040CC';
+    
+    // Generate Icon
+    function generateIcon() {
+      const canvas = document.getElementById('icon-canvas');
+      const ctx = canvas.getContext('2d');
+      const size = 200;
+      
+      // Background gradient
+      const gradient = ctx.createRadialGradient(
+        size / 2, size / 2, 0,
+        size / 2, size / 2, size
+      );
+      gradient.addColorStop(0, '#0066FF');
+      gradient.addColorStop(1, BASE_BLUE_DARK);
+      ctx.fillStyle = gradient;
+      
+      // Rounded rectangle background
+      ctx.beginPath();
+      roundRect(ctx, 0, 0, size, size, 40);
+      ctx.fill();
+      
+      // Inner shadow effect
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 3, size / 3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Checkmark
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 16;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(55, 105);
+      ctx.lineTo(85, 135);
+      ctx.lineTo(145, 70);
+      ctx.stroke();
+      
+      // Calendar dots at bottom
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      const dotY = 165;
+      const dotSpacing = 20;
+      const startX = size / 2 - (dotSpacing * 3);
+      
+      for (let i = 0; i < 7; i++) {
+        ctx.beginPath();
+        ctx.arc(startX + i * dotSpacing, dotY, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Highlight middle dots (checked days)
+      ctx.fillStyle = 'white';
+      for (let i = 2; i < 6; i++) {
+        ctx.beginPath();
+        ctx.arc(startX + i * dotSpacing, dotY, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Generate Preview
+    function generatePreview() {
+      const canvas = document.getElementById('preview-canvas');
+      const ctx = canvas.getContext('2d');
+      const width = 600;
+      const height = 400;
+      
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#0066FF');
+      gradient.addColorStop(1, BASE_BLUE_DARK);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      
+      // Decorative circles
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.beginPath();
+      ctx.arc(100, 350, 150, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(500, 50, 100, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Title
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 48px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Base Check-In', width / 2, 100);
+      
+      // Large checkmark
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 20;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(230, 200);
+      ctx.lineTo(280, 250);
+      ctx.lineTo(370, 160);
+      ctx.stroke();
+      
+      // Subtitle
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = '24px system-ui, sans-serif';
+      ctx.fillText('Daily proof of human', width / 2, 310);
+      
+      // Tags
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.fillText('Streaks • Wallet Signatures • No Tokens', width / 2, 360);
+    }
+    
+    // Helper: Rounded rectangle
+    function roundRect(ctx, x, y, width, height, radius) {
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+    }
+    
+    // Download functions
+    function downloadIcon() {
+      const canvas = document.getElementById('icon-canvas');
+      const link = document.createElement('a');
+      link.download = 'icon.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+    
+    function downloadPreview() {
+      const canvas = document.getElementById('preview-canvas');
+      const link = document.createElement('a');
+      link.download = 'preview.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+    
+    // Initialize
+    window.onload = function() {
+      generateIcon();
+      generatePreview();
+    };
+  </script>
+</body>
+</html>
+
