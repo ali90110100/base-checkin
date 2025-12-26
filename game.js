@@ -311,6 +311,15 @@ function handleDisconnect() {
   showScreen('connect');
 }
 
+// Convert string to hex
+function stringToHex(str) {
+  let hex = '0x';
+  for (let i = 0; i < str.length; i++) {
+    hex += str.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
 // Check in
 async function handleCheckIn() {
   if (!currentWallet) return;
@@ -332,18 +341,69 @@ async function handleCheckIn() {
     
     // Create message to sign
     const message = `Base Check-In | ${currentWallet} | ${today}`;
+    const hexMessage = stringToHex(message);
     
-    // Request signature
-    const signature = await provider.request({
-      method: 'personal_sign',
-      params: [message, currentWallet]
-    });
+    console.log('Signing message:', message);
+    console.log('Wallet:', currentWallet);
+    console.log('Provider:', provider);
+    
+    let signature = null;
+    
+    // Try Farcaster SDK signMessage first (if available)
+    if (isInFarcasterFrame) {
+      try {
+        const sdk = await loadFarcasterSdk();
+        if (sdk && sdk.actions && typeof sdk.actions.signMessage === 'function') {
+          console.log('Using Farcaster signMessage');
+          // Try different parameter formats
+          let result = null;
+          try {
+            result = await sdk.actions.signMessage({ message: message });
+          } catch (e1) {
+            console.log('signMessage with object failed, trying direct:', e1);
+            try {
+              result = await sdk.actions.signMessage(message);
+            } catch (e2) {
+              console.log('signMessage direct failed:', e2);
+            }
+          }
+          if (result) {
+            signature = result.signature || result;
+            console.log('Farcaster signMessage result:', result);
+          }
+        }
+      } catch (e) {
+        console.log('Farcaster signMessage failed:', e);
+      }
+    }
+    
+    // Fallback to provider personal_sign
+    if (!signature && provider) {
+      try {
+        // Try with hex message first (Farcaster preference)
+        console.log('Trying personal_sign with hex message');
+        signature = await provider.request({
+          method: 'personal_sign',
+          params: [hexMessage, currentWallet]
+        });
+      } catch (e) {
+        console.log('Hex sign failed, trying plain message:', e);
+        // Fallback to plain message
+        signature = await provider.request({
+          method: 'personal_sign',
+          params: [message, currentWallet]
+        });
+      }
+    }
     
     if (signature) {
+      console.log('Signature received:', signature);
       // Save check-in
       saveCheckIn(currentWallet, today, signature);
       updateDashboard();
       showStreakCard();
+    } else {
+      throw new Error('No signature received');
     }
   } catch (error) {
     console.error('Check-in failed:', error);
