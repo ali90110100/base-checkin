@@ -1,8 +1,8 @@
 {
   "accountAssociation": {
-    "header": "[PLACEHOLDER_HEADER]",
-    "payload": "[PLACEHOLDER_PAYLOAD]",
-    "signature": "[PLACEHOLDER_SIGNATURE]"
+    "header": "eyJmaWQiOjUwMzMyMiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDM0MzJiRDU0NWRDYkQwNmZjZjVGMTUyNDEwNTc4NDkzMjA2MDYzZGMifQ",
+    "payload": "eyJkb21haW4iOiJiYXNlLWNoZWNraW4tZWlnaHQudmVyY2VsLmFwcCJ9",
+    "signature": "hHv/EXkHI9ZOIN7ygbf6Cd0PPPPAw8JEsTXiTFxeLUV3PBqGn2dsqyiUUPIdIFVknSmZacYMyllVcTAiWWSfFhs="
   },
   "frame": {
     "version": "1",
@@ -12,10 +12,9 @@
     "primaryCategory": "social",
     "tags": ["base", "identity", "daily", "farcaster"],
     "tagline": "Check in every day",
-    "iconUrl": "https://[DOMAIN]/icon.png",
-    "homeUrl": "https://[DOMAIN]/",
-    "splashImageUrl": "https://[DOMAIN]/preview.png",
+    "iconUrl": "https://base-checkin-eight.vercel.app/icon.png",
+    "homeUrl": "https://base-checkin-eight.vercel.app/",
+    "splashImageUrl": "https://base-checkin-eight.vercel.app/preview.png",
     "splashBackgroundColor": "#0052FF"
   }
 }
-
