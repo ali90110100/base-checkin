@@ -47,11 +47,46 @@ async function getFarcasterProvider() {
   if (!isInFarcasterFrame) return null;
   try {
     const sdk = await loadFarcasterSdk();
-    if (!sdk || !sdk.wallet) return null;
-    if (typeof sdk.wallet.getEthereumProvider !== 'function') return null;
-    const provider = await sdk.wallet.getEthereumProvider();
-    return provider || null;
+    if (!sdk) return null;
+    
+    // Try ethProvider first (newer SDK versions)
+    if (sdk.wallet && sdk.wallet.ethProvider) {
+      return sdk.wallet.ethProvider;
+    }
+    
+    // Fallback to getEthereumProvider
+    if (sdk.wallet && typeof sdk.wallet.getEthereumProvider === 'function') {
+      const provider = await sdk.wallet.getEthereumProvider();
+      return provider || null;
+    }
+    
+    return null;
   } catch (e) {
+    console.log('getFarcasterProvider error:', e);
+    return null;
+  }
+}
+
+// Get Farcaster user context (includes wallet address)
+async function getFarcasterContext() {
+  if (!isInFarcasterFrame) return null;
+  try {
+    const sdk = await loadFarcasterSdk();
+    if (!sdk) return null;
+    
+    // Context might be a promise or direct object
+    let context = sdk.context;
+    if (typeof context === 'function') {
+      context = await context();
+    }
+    if (context && typeof context.then === 'function') {
+      context = await context;
+    }
+    
+    console.log('Raw SDK context:', context);
+    return context || null;
+  } catch (e) {
+    console.log('getFarcasterContext error:', e);
     return null;
   }
 }
@@ -150,17 +185,40 @@ async function init() {
     // Setup event listeners
     setupEventListeners();
     
-    // Try to restore session
+    // Try to restore session from localStorage first
     const savedWallet = localStorage.getItem('connected_wallet');
     if (savedWallet) {
       currentWallet = savedWallet;
-      // Try to restore provider for signing
       try {
         currentProvider = await getProvider();
       } catch (e) {
         console.log('Could not restore provider');
       }
       showDashboard();
+      return;
+    }
+    
+    // In Farcaster, try to auto-connect from context
+    if (isInFarcasterFrame) {
+      const context = await getFarcasterContext();
+      console.log('Farcaster context on init:', context);
+      
+      if (context && context.user) {
+        const address = context.user.connectedAddress || 
+                       (context.user.verifiedAddresses && context.user.verifiedAddresses[0]);
+        if (address) {
+          currentWallet = address;
+          try {
+            currentProvider = await getProvider();
+          } catch (e) {
+            console.log('Could not get provider');
+          }
+          localStorage.setItem('connected_wallet', currentWallet);
+          isConnected = true;
+          showDashboard();
+          return;
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to initialize:', error);
@@ -191,9 +249,34 @@ async function handleConnect() {
   connectBtn.disabled = true;
   
   try {
-    const provider = await getProvider();
+    // In Farcaster, try to get address from context first
+    if (isInFarcasterFrame) {
+      const context = await getFarcasterContext();
+      console.log('Farcaster context:', context);
+      
+      // Check if we have a connected address in context
+      if (context && context.user && context.user.connectedAddress) {
+        currentWallet = context.user.connectedAddress;
+        currentProvider = await getProvider();
+        localStorage.setItem('connected_wallet', currentWallet);
+        isConnected = true;
+        showDashboard();
+        return;
+      }
+      
+      // Try verifiedAddresses if connectedAddress not available
+      if (context && context.user && context.user.verifiedAddresses && context.user.verifiedAddresses.length > 0) {
+        currentWallet = context.user.verifiedAddresses[0];
+        currentProvider = await getProvider();
+        localStorage.setItem('connected_wallet', currentWallet);
+        isConnected = true;
+        showDashboard();
+        return;
+      }
+    }
     
-    // Request accounts
+    // Fallback: Request accounts via provider
+    const provider = await getProvider();
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
     
     if (accounts && accounts.length > 0) {
