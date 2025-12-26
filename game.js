@@ -49,15 +49,10 @@ async function getFarcasterProvider() {
     const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
     
-    // Try ethProvider first (newer SDK versions)
+    // Use ethProvider directly - this is the correct way for Mini Apps
     if (sdk.wallet && sdk.wallet.ethProvider) {
+      console.log('Using sdk.wallet.ethProvider');
       return sdk.wallet.ethProvider;
-    }
-    
-    // Fallback to getEthereumProvider
-    if (sdk.wallet && typeof sdk.wallet.getEthereumProvider === 'function') {
-      const provider = await sdk.wallet.getEthereumProvider();
-      return provider || null;
     }
     
     return null;
@@ -311,13 +306,13 @@ function handleDisconnect() {
   showScreen('connect');
 }
 
-// Convert string to hex
-function stringToHex(str) {
-  let hex = '0x';
+// Convert string to hex for signing
+function toHex(str) {
+  let result = '0x';
   for (let i = 0; i < str.length; i++) {
-    hex += str.charCodeAt(i).toString(16).padStart(2, '0');
+    result += str.charCodeAt(i).toString(16).padStart(2, '0');
   }
-  return hex;
+  return result;
 }
 
 // Check in
@@ -337,68 +332,47 @@ async function handleCheckIn() {
   checkinBtn.disabled = true;
   
   try {
-    const provider = currentProvider || await getProvider();
-    
     // Create message to sign
     const message = `Base Check-In | ${currentWallet} | ${today}`;
-    const hexMessage = stringToHex(message);
+    const hexMessage = toHex(message);
     
-    console.log('Signing message:', message);
+    console.log('Message:', message);
+    console.log('Hex Message:', hexMessage);
     console.log('Wallet:', currentWallet);
-    console.log('Provider:', provider);
     
     let signature = null;
     
-    // Try Farcaster SDK signMessage first (if available)
-    if (isInFarcasterFrame) {
-      try {
-        const sdk = await loadFarcasterSdk();
-        if (sdk && sdk.actions && typeof sdk.actions.signMessage === 'function') {
-          console.log('Using Farcaster signMessage');
-          // Try different parameter formats
-          let result = null;
-          try {
-            result = await sdk.actions.signMessage({ message: message });
-          } catch (e1) {
-            console.log('signMessage with object failed, trying direct:', e1);
-            try {
-              result = await sdk.actions.signMessage(message);
-            } catch (e2) {
-              console.log('signMessage direct failed:', e2);
-            }
-          }
-          if (result) {
-            signature = result.signature || result;
-            console.log('Farcaster signMessage result:', result);
-          }
-        }
-      } catch (e) {
-        console.log('Farcaster signMessage failed:', e);
-      }
+    // Get provider
+    const sdk = isInFarcasterFrame ? await loadFarcasterSdk() : null;
+    const provider = sdk?.wallet?.ethProvider || currentProvider || window.ethereum;
+    
+    if (!provider) {
+      throw new Error('No wallet provider available');
     }
     
-    // Fallback to provider personal_sign
-    if (!signature && provider) {
-      try {
-        // Try with hex message first (Farcaster preference)
-        console.log('Trying personal_sign with hex message');
-        signature = await provider.request({
-          method: 'personal_sign',
-          params: [hexMessage, currentWallet]
-        });
-      } catch (e) {
-        console.log('Hex sign failed, trying plain message:', e);
-        // Fallback to plain message
-        signature = await provider.request({
-          method: 'personal_sign',
-          params: [message, currentWallet]
-        });
+    console.log('Provider found:', !!provider);
+    
+    // First get the actual connected account from provider
+    let signerAddress = currentWallet;
+    try {
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      if (accounts && accounts.length > 0) {
+        signerAddress = accounts[0];
+        console.log('Signer address from provider:', signerAddress);
       }
+    } catch (e) {
+      console.log('Could not get accounts:', e);
     }
+    
+    // Sign the message
+    console.log('Requesting signature...');
+    signature = await provider.request({
+      method: 'personal_sign',
+      params: [hexMessage, signerAddress]
+    });
     
     if (signature) {
       console.log('Signature received:', signature);
-      // Save check-in
       saveCheckIn(currentWallet, today, signature);
       updateDashboard();
       showStreakCard();
@@ -407,7 +381,7 @@ async function handleCheckIn() {
     }
   } catch (error) {
     console.error('Check-in failed:', error);
-    alert('Check-in failed. Please try again.');
+    alert('Check-in failed: ' + (error.message || 'Unknown error'));
   } finally {
     checkinBtn.classList.remove('loading');
     checkinBtn.disabled = false;
