@@ -92,6 +92,15 @@
     </div>
     
     <div class="icon-section">
+      <h2>Splash Image (200×200)</h2>
+      <div class="canvas-container">
+        <canvas id="splash-canvas" width="200" height="200"></canvas>
+        <button class="btn" onclick="downloadSplash()">Download splash.png</button>
+        <p class="info">Splash screen image shown during loading</p>
+      </div>
+    </div>
+    
+    <div class="icon-section">
       <h2>Preview Image (600×400)</h2>
       <div class="canvas-container">
         <canvas id="preview-canvas" width="600" height="400"></canvas>
@@ -163,6 +172,39 @@
         ctx.arc(startX + i * dotSpacing, dotY, 4, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    
+    // Generate Splash
+    function generateSplash() {
+      const canvas = document.getElementById('splash-canvas');
+      const ctx = canvas.getContext('2d');
+      const size = 200;
+      
+      // Solid blue background
+      ctx.fillStyle = BASE_BLUE;
+      ctx.fillRect(0, 0, size, size);
+      
+      // Subtle gradient overlay
+      const gradient = ctx.createRadialGradient(
+        size / 2, size / 2, 0,
+        size / 2, size / 2, size
+      );
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      
+      // Large checkmark centered
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(55, 105);
+      ctx.lineTo(85, 135);
+      ctx.lineTo(145, 70);
+      ctx.stroke();
     }
     
     // Generate Preview
@@ -240,6 +282,14 @@
       link.click();
     }
     
+    function downloadSplash() {
+      const canvas = document.getElementById('splash-canvas');
+      const link = document.createElement('a');
+      link.download = 'splash.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+    
     function downloadPreview() {
       const canvas = document.getElementById('preview-canvas');
       const link = document.createElement('a');
@@ -251,9 +301,9 @@
     // Initialize
     window.onload = function() {
       generateIcon();
+      generateSplash();
       generatePreview();
     };
   </script>
 </body>
 </html>
-
