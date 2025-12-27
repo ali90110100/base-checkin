@@ -31,33 +31,63 @@ function detectFarcasterFrame() {
 
 // Detect immediately at script load
 isInFarcasterFrame = detectFarcasterFrame();
-console.log('Farcaster frame detected:', isInFarcasterFrame);
+console.log('[FC] Farcaster frame detected:', isInFarcasterFrame);
 
-// Load and initialize Farcaster SDK IMMEDIATELY if in frame
-// This MUST happen as soon as possible - before DOMContentLoaded
-async function initFarcasterSdk() {
-  if (!isInFarcasterFrame) return null;
+// CDN URLs for the Farcaster SDK - try multiple sources
+const SDK_URLS = [
+  'https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/+esm',
+  'https://unpkg.com/@farcaster/miniapp-sdk?module',
+  'https://esm.sh/@farcaster/miniapp-sdk',
+];
+
+// Try to load SDK from multiple CDNs
+async function loadSdkFromCdn(url) {
   try {
-    console.log('Loading Farcaster SDK...');
-    const module = await import('https://esm.sh/@farcaster/frame-sdk');
-    const sdk = module.sdk || module.default;
-    console.log('SDK loaded:', sdk);
-
-    if (sdk) {
-      farcasterSdk = sdk;
-      // Call ready() IMMEDIATELY - this is critical!
-      if (sdk.actions && typeof sdk.actions.ready === 'function') {
-        console.log('Calling sdk.actions.ready()...');
-        await sdk.actions.ready();
-        console.log('SDK ready() called successfully');
-        sdkReady = true;
-      }
-    }
-    return sdk;
+    console.log('[FC] Trying to load SDK from:', url);
+    const module = await import(url);
+    console.log('[FC] SDK module loaded:', module);
+    return module.sdk || module.default || module;
   } catch (e) {
-    console.error('Failed to initialize Farcaster SDK:', e);
+    console.log('[FC] Failed to load from', url, ':', e.message);
     return null;
   }
+}
+
+// Load and initialize Farcaster SDK IMMEDIATELY if in frame
+async function initFarcasterSdk() {
+  if (!isInFarcasterFrame) {
+    console.log('[FC] Not in frame, skipping SDK init');
+    return null;
+  }
+
+  console.log('[FC] Starting SDK initialization...');
+
+  // Try each CDN until one works
+  for (const url of SDK_URLS) {
+    const sdk = await loadSdkFromCdn(url);
+    if (sdk) {
+      console.log('[FC] SDK loaded successfully:', sdk);
+      farcasterSdk = sdk;
+
+      // Call ready() IMMEDIATELY - this is critical!
+      try {
+        if (sdk.actions && typeof sdk.actions.ready === 'function') {
+          console.log('[FC] Calling sdk.actions.ready()...');
+          await sdk.actions.ready();
+          console.log('[FC] sdk.actions.ready() called successfully!');
+          sdkReady = true;
+          return sdk;
+        } else {
+          console.log('[FC] SDK loaded but actions.ready not found, SDK structure:', Object.keys(sdk));
+        }
+      } catch (readyError) {
+        console.error('[FC] Error calling ready():', readyError);
+      }
+    }
+  }
+
+  console.error('[FC] Failed to load SDK from all CDNs');
+  return null;
 }
 
 // Start SDK initialization immediately - don't wait for anything

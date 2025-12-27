@@ -4,6 +4,31 @@
     "payload": "eyJkb21haW4iOiJiYXNlLWNoZWNraW4tZWlnaHQudmVyY2VsLmFwcCJ9",
     "signature": "hHv/EXkHI9ZOIN7ygbf6Cd0PPPPAw8JEsTXiTFxeLUV3PBqGn2dsqyiUUPIdIFVknSmZacYMyllVcTAiWWSfFhs="
   },
+  "miniapp": {
+    "name": "Base Check-In",
+    "version": "1",
+    "iconUrl": "https://base-checkin-eight.vercel.app/icon.png",
+    "homeUrl": "https://base-checkin-eight.vercel.app",
+    "splashImageUrl": "https://base-checkin-eight.vercel.app/splash.png",
+    "splashBackgroundColor": "#0052FF",
+    "subtitle": "Daily proof of being real",
+    "description": "Base Check-In lets Base wallet users prove they were active today by signing a message. Build streaks, track your activity, and share your daily check-ins on Farcaster.",
+    "screenshotUrls": [
+      "https://base-checkin-eight.vercel.app/preview.png"
+    ],
+    "primaryCategory": "social",
+    "tags": [
+      "base",
+      "identity",
+      "daily",
+      "streak"
+    ],
+    "heroImageUrl": "https://base-checkin-eight.vercel.app/preview.png",
+    "tagline": "Check in every day",
+    "ogTitle": "Base Check-In",
+    "ogDescription": "Prove you were here. Build a daily Base streak and share it on Farcaster.",
+    "ogImageUrl": "https://base-checkin-eight.vercel.app/preview.png"
+  },
   "frame": {
     "name": "Base Check-In",
     "version": "1",
@@ -19,7 +44,12 @@
       "https://base-checkin-eight.vercel.app/preview.png"
     ],
     "primaryCategory": "social",
-    "tags": ["base", "identity", "daily", "streak"],
+    "tags": [
+      "base",
+      "identity",
+      "daily",
+      "streak"
+    ],
     "heroImageUrl": "https://base-checkin-eight.vercel.app/preview.png",
     "tagline": "Check in every day",
     "ogTitle": "Base Check-In",
