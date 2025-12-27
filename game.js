@@ -57,9 +57,17 @@ async function getFarcasterProvider() {
     const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
 
-    // Use ethProvider directly - this is the correct way for Mini Apps
+    // Use getEthereumProvider() per official Farcaster docs
+    // https://miniapps.farcaster.xyz/docs/sdk/wallet
+    if (sdk.wallet && typeof sdk.wallet.getEthereumProvider === 'function') {
+      console.log('Using sdk.wallet.getEthereumProvider()');
+      const provider = await sdk.wallet.getEthereumProvider();
+      return provider;
+    }
+
+    // Fallback for older SDK versions
     if (sdk.wallet && sdk.wallet.ethProvider) {
-      console.log('Using sdk.wallet.ethProvider');
+      console.log('Using sdk.wallet.ethProvider (fallback)');
       return sdk.wallet.ethProvider;
     }
 
