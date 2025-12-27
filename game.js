@@ -278,46 +278,36 @@ function setupEventListeners() {
 
 // Connect wallet
 async function handleConnect() {
+  console.log('handleConnect called');
   connectBtn.classList.add('loading');
   connectBtn.disabled = true;
 
   try {
-    // In Farcaster, try to get address from context first
-    if (isInFarcasterFrame) {
-      const context = await getFarcasterContext();
-      console.log('Farcaster context:', context);
+    console.log('isInFarcasterFrame:', isInFarcasterFrame);
 
-      // Check if we have a connected address in context
-      if (context && context.user && context.user.connectedAddress) {
-        currentWallet = context.user.connectedAddress;
-        currentProvider = await getProvider();
-        localStorage.setItem('connected_wallet', currentWallet);
-        isConnected = true;
-        showDashboard();
-        return;
-      }
+    // Get the wallet provider (Farcaster or MetaMask)
+    console.log('Getting provider...');
+    const provider = await getProvider();
+    console.log('Provider obtained:', provider);
 
-      // Try verifiedAddresses if connectedAddress not available
-      if (context && context.user && context.user.verifiedAddresses && context.user.verifiedAddresses.length > 0) {
-        currentWallet = context.user.verifiedAddresses[0];
-        currentProvider = await getProvider();
-        localStorage.setItem('connected_wallet', currentWallet);
-        isConnected = true;
-        showDashboard();
-        return;
-      }
+    if (!provider) {
+      throw new Error('No wallet provider available');
     }
 
-    // Fallback: Request accounts via provider
-    const provider = await getProvider();
+    // Request accounts - this will prompt user to connect in Farcaster
+    console.log('Requesting accounts...');
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
+    console.log('Accounts received:', accounts);
 
     if (accounts && accounts.length > 0) {
       currentWallet = accounts[0];
       currentProvider = provider;
       localStorage.setItem('connected_wallet', currentWallet);
       isConnected = true;
+      console.log('Connected with wallet:', currentWallet);
       showDashboard();
+    } else {
+      throw new Error('No accounts returned');
     }
   } catch (error) {
     console.error('Connection failed:', error);
