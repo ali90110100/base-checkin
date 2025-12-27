@@ -48,13 +48,13 @@ async function getFarcasterProvider() {
   try {
     const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
-    
+
     // Use ethProvider directly - this is the correct way for Mini Apps
     if (sdk.wallet && sdk.wallet.ethProvider) {
       console.log('Using sdk.wallet.ethProvider');
       return sdk.wallet.ethProvider;
     }
-    
+
     return null;
   } catch (e) {
     console.log('getFarcasterProvider error:', e);
@@ -68,7 +68,7 @@ async function getFarcasterContext() {
   try {
     const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
-    
+
     // Context might be a promise or direct object
     let context = sdk.context;
     if (typeof context === 'function') {
@@ -77,7 +77,7 @@ async function getFarcasterContext() {
     if (context && typeof context.then === 'function') {
       context = await context;
     }
-    
+
     console.log('Raw SDK context:', context);
     return context || null;
   } catch (e) {
@@ -120,18 +120,18 @@ async function getProvider() {
     }
     throw new Error('Please install MetaMask or Rabby wallet.');
   }
-  
+
   // In Farcaster frame, try Farcaster provider first
   const farcasterProvider = await getFarcasterProvider();
   if (farcasterProvider) {
     return farcasterProvider;
   }
-  
+
   // Fallback to injected wallet in frame
   if (window.ethereum) {
     return window.ethereum;
   }
-  
+
   throw new Error('No wallet found. Please try again in Warpcast.');
 }
 
@@ -160,26 +160,41 @@ const closeModalBtn = document.getElementById('close-modal-btn');
 
 // Initialize app
 async function init() {
+  // Ensure UI is visible immediately - prevent blue screen on mobile
+  document.body.style.visibility = 'visible';
+  document.body.style.opacity = '1';
+
+  // Setup event listeners first so UI is interactive even if SDK fails
+  setupEventListeners();
+
   try {
     // Detect environment first
     isInFarcasterFrame = detectFarcasterFrame();
     console.log('Running in Farcaster frame:', isInFarcasterFrame);
-    
-    // Initialize Farcaster SDK (only if in frame)
-    await callFarcasterReady();
-    
+
+    // Initialize Farcaster SDK with timeout (only if in frame)
+    // Use a timeout to prevent hanging on mobile
+    if (isInFarcasterFrame) {
+      try {
+        await Promise.race([
+          callFarcasterReady(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('SDK timeout')), 3000))
+        ]);
+        console.log('Farcaster SDK ready');
+      } catch (sdkError) {
+        console.log('Farcaster SDK init timeout or error, continuing anyway:', sdkError);
+      }
+    }
+
     // Check for profile view mode
     const urlParams = new URLSearchParams(window.location.search);
     const profileUser = urlParams.get('user');
-    
+
     if (profileUser) {
       showProfileScreen(profileUser);
       return;
     }
 
-    // Setup event listeners
-    setupEventListeners();
-    
     // Try to restore session from localStorage first
     const savedWallet = localStorage.getItem('connected_wallet');
     if (savedWallet) {
@@ -192,31 +207,44 @@ async function init() {
       showDashboard();
       return;
     }
-    
-    // In Farcaster, try to auto-connect from context
+
+    // In Farcaster, try to auto-connect from context with timeout
     if (isInFarcasterFrame) {
-      const context = await getFarcasterContext();
-      console.log('Farcaster context on init:', context);
-      
-      if (context && context.user) {
-        const address = context.user.connectedAddress || 
-                       (context.user.verifiedAddresses && context.user.verifiedAddresses[0]);
-        if (address) {
-          currentWallet = address;
-          try {
-            currentProvider = await getProvider();
-          } catch (e) {
-            console.log('Could not get provider');
+      try {
+        const contextPromise = getFarcasterContext();
+        const context = await Promise.race([
+          contextPromise,
+          new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+        ]);
+        console.log('Farcaster context on init:', context);
+
+        if (context && context.user) {
+          const address = context.user.connectedAddress ||
+            (context.user.verifiedAddresses && context.user.verifiedAddresses[0]);
+          if (address) {
+            currentWallet = address;
+            try {
+              currentProvider = await getProvider();
+            } catch (e) {
+              console.log('Could not get provider');
+            }
+            localStorage.setItem('connected_wallet', currentWallet);
+            isConnected = true;
+            showDashboard();
+            return;
           }
-          localStorage.setItem('connected_wallet', currentWallet);
-          isConnected = true;
-          showDashboard();
-          return;
         }
+      } catch (contextError) {
+        console.log('Could not get Farcaster context:', contextError);
       }
     }
+
+    // Default: show connect screen
+    showScreen('connect');
   } catch (error) {
     console.error('Failed to initialize:', error);
+    // Always show connect screen on error
+    showScreen('connect');
   }
 }
 
@@ -231,10 +259,10 @@ function setupEventListeners() {
   openCardBtn.addEventListener('click', openImageInNewTab);
   shareCardBtn.addEventListener('click', shareOnFarcaster);
   closeModalBtn.addEventListener('click', closeModal);
-  
+
   // Touch support
   document.querySelectorAll('.btn').forEach(btn => {
-    btn.addEventListener('touchstart', () => {}, { passive: true });
+    btn.addEventListener('touchstart', () => { }, { passive: true });
   });
 }
 
@@ -242,13 +270,13 @@ function setupEventListeners() {
 async function handleConnect() {
   connectBtn.classList.add('loading');
   connectBtn.disabled = true;
-  
+
   try {
     // In Farcaster, try to get address from context first
     if (isInFarcasterFrame) {
       const context = await getFarcasterContext();
       console.log('Farcaster context:', context);
-      
+
       // Check if we have a connected address in context
       if (context && context.user && context.user.connectedAddress) {
         currentWallet = context.user.connectedAddress;
@@ -258,7 +286,7 @@ async function handleConnect() {
         showDashboard();
         return;
       }
-      
+
       // Try verifiedAddresses if connectedAddress not available
       if (context && context.user && context.user.verifiedAddresses && context.user.verifiedAddresses.length > 0) {
         currentWallet = context.user.verifiedAddresses[0];
@@ -269,11 +297,11 @@ async function handleConnect() {
         return;
       }
     }
-    
+
     // Fallback: Request accounts via provider
     const provider = await getProvider();
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
-    
+
     if (accounts && accounts.length > 0) {
       currentWallet = accounts[0];
       currentProvider = provider;
@@ -318,40 +346,40 @@ function toHex(str) {
 // Check in
 async function handleCheckIn() {
   if (!currentWallet) return;
-  
+
   const today = getTodayString();
   const userData = getUserData(currentWallet);
-  
+
   // Check if already checked in today
   if (userData.dates.includes(today)) {
     alert('You have already checked in today!');
     return;
   }
-  
+
   checkinBtn.classList.add('loading');
   checkinBtn.disabled = true;
-  
+
   try {
     // Create message to sign
     const message = `Base Check-In | ${currentWallet} | ${today}`;
     const hexMessage = toHex(message);
-    
+
     console.log('Message:', message);
     console.log('Hex Message:', hexMessage);
     console.log('Wallet:', currentWallet);
-    
+
     let signature = null;
-    
+
     // Get provider
     const sdk = isInFarcasterFrame ? await loadFarcasterSdk() : null;
     const provider = sdk?.wallet?.ethProvider || currentProvider || window.ethereum;
-    
+
     if (!provider) {
       throw new Error('No wallet provider available');
     }
-    
+
     console.log('Provider found:', !!provider);
-    
+
     // First get the actual connected account from provider
     let signerAddress = currentWallet;
     try {
@@ -363,14 +391,14 @@ async function handleCheckIn() {
     } catch (e) {
       console.log('Could not get accounts:', e);
     }
-    
+
     // Sign the message
     console.log('Requesting signature...');
     signature = await provider.request({
       method: 'personal_sign',
       params: [hexMessage, signerAddress]
     });
-    
+
     if (signature) {
       console.log('Signature received:', signature);
       saveCheckIn(currentWallet, today, signature);
@@ -410,52 +438,52 @@ function saveCheckIn(wallet, date, signature) {
     lastDate: null,
     signatures: {}
   };
-  
+
   // Add date
   if (!userData.dates.includes(date)) {
     userData.dates.push(date);
     userData.dates.sort();
   }
-  
+
   // Save signature
   userData.signatures[date] = signature;
-  
+
   // Update total
   userData.total = userData.dates.length;
-  
+
   // Calculate streak
   userData.streak = calculateStreak(userData.dates);
   userData.lastDate = date;
-  
+
   allData[walletKey] = userData;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
 }
 
 function calculateStreak(dates) {
   if (dates.length === 0) return 0;
-  
+
   const sortedDates = [...dates].sort().reverse();
   const today = getTodayString();
   const yesterday = getYesterdayString();
-  
+
   // Check if streak is still active
   if (sortedDates[0] !== today && sortedDates[0] !== yesterday) {
     return 0;
   }
-  
+
   let streak = 1;
   for (let i = 0; i < sortedDates.length - 1; i++) {
     const current = new Date(sortedDates[i]);
     const next = new Date(sortedDates[i + 1]);
     const diffDays = Math.floor((current - next) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) {
       streak++;
     } else {
       break;
     }
   }
-  
+
   return streak;
 }
 
@@ -475,7 +503,7 @@ function showScreen(screen) {
   connectScreen.classList.remove('active');
   dashboardScreen.classList.remove('active');
   profileScreen.classList.remove('active');
-  
+
   switch (screen) {
     case 'connect':
       connectScreen.classList.add('active');
@@ -496,18 +524,18 @@ function showDashboard() {
 
 function updateDashboard() {
   if (!currentWallet) return;
-  
+
   const userData = getUserData(currentWallet);
   const today = getTodayString();
   const checkedInToday = userData.dates.includes(today);
-  
+
   // Update stats
   streakValue.textContent = userData.streak;
   totalValue.textContent = userData.total;
-  
+
   // Update wallet address
   walletAddress.textContent = formatAddress(currentWallet);
-  
+
   // Update status
   if (checkedInToday) {
     statusCard.classList.add('checked-in');
@@ -522,7 +550,7 @@ function updateDashboard() {
     checkinBtn.textContent = 'Check In Now';
     checkinBtn.disabled = false;
   }
-  
+
   // Render calendar
   renderCalendar(calendarGrid, userData.dates);
 }
@@ -530,42 +558,42 @@ function updateDashboard() {
 // Profile screen
 function showProfileScreen(wallet) {
   showScreen('profile');
-  
+
   const userData = getUserData(wallet);
-  
+
   document.getElementById('profile-wallet').textContent = wallet;
   document.getElementById('profile-streak').textContent = userData.streak;
   document.getElementById('profile-total').textContent = userData.total;
   document.getElementById('profile-last-date').textContent = userData.lastDate || 'Never';
-  
+
   renderCalendar(document.getElementById('profile-calendar'), userData.dates);
 }
 
 // Calendar rendering
 function renderCalendar(container, checkedDates) {
   container.innerHTML = '';
-  
+
   const today = new Date();
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - 34); // Show last 35 days
-  
+
   for (let i = 0; i < 35; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     const dayEl = document.createElement('div');
     dayEl.className = 'calendar-day';
     dayEl.textContent = date.getDate();
-    
+
     if (checkedDates.includes(dateStr)) {
       dayEl.classList.add('checked');
     }
-    
+
     if (dateStr === getTodayString()) {
       dayEl.classList.add('today');
     }
-    
+
     container.appendChild(dayEl);
   }
 }
@@ -573,7 +601,7 @@ function renderCalendar(container, checkedDates) {
 // Streak card
 function showStreakCard() {
   if (!currentWallet) return;
-  
+
   const userData = getUserData(currentWallet);
   generateStreakCard(userData);
   streakCardModal.classList.add('active');
@@ -583,14 +611,14 @@ function generateStreakCard(userData) {
   const ctx = streakCardCanvas.getContext('2d');
   const width = 600;
   const height = 400;
-  
+
   // Background gradient
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#0052FF');
   gradient.addColorStop(1, '#0040CC');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
-  
+
   // Add subtle pattern
   ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
   for (let i = 0; i < 20; i++) {
@@ -600,48 +628,48 @@ function generateStreakCard(userData) {
     ctx.arc(x, y, Math.random() * 50 + 20, 0, Math.PI * 2);
     ctx.fill();
   }
-  
+
   // Title
   ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
   ctx.font = 'bold 32px JetBrains Mono, monospace';
   ctx.textAlign = 'center';
   ctx.fillText('Base Check-In', width / 2, 60);
-  
+
   // Checkmark icon
   ctx.fillStyle = 'white';
   ctx.font = 'bold 80px Arial';
   ctx.fillText('✓', width / 2, 160);
-  
+
   // Streak
   ctx.fillStyle = 'white';
   ctx.font = 'bold 72px JetBrains Mono, monospace';
   ctx.fillText(`${userData.streak}`, width / 2, 260);
-  
+
   ctx.font = '24px JetBrains Mono, monospace';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
   ctx.fillText('DAY STREAK', width / 2, 295);
-  
+
   // Wallet
   ctx.font = '16px JetBrains Mono, monospace';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
   ctx.fillText(formatAddress(currentWallet), width / 2, 350);
-  
+
   // Date
   ctx.fillText(getTodayString(), width / 2, 380);
 }
 
 function downloadStreakCard() {
   const filename = 'base-checkin-' + getTodayString() + '.png';
-  
+
   try {
     // Get PNG data URL
     const dataUrl = streakCardCanvas.toDataURL('image/png');
-    
+
     // Validate it's actually a PNG
     if (!dataUrl || !dataUrl.startsWith('data:image/png')) {
       throw new Error('Invalid image data');
     }
-    
+
     // Create and trigger download
     const link = document.createElement('a');
     link.download = filename;
@@ -649,7 +677,7 @@ function downloadStreakCard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     console.log('Download triggered:', filename);
   } catch (e) {
     console.error('Download error:', e);
@@ -679,7 +707,7 @@ async function copyImageToClipboard() {
     const blob = await new Promise(resolve => {
       streakCardCanvas.toBlob(resolve, 'image/png');
     });
-    
+
     if (blob && navigator.clipboard && navigator.clipboard.write) {
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob })
@@ -705,15 +733,15 @@ async function shareOnFarcaster() {
   try {
     const userData = getUserData(currentWallet);
     const text = `Just checked in on Base! 🔵\n\n🔥 ${userData.streak} day streak\n📅 ${userData.total} total days\n\nProof of human, every day.`;
-    
+
     const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`;
-    
+
     // Try Farcaster SDK first, fallback to window.open
     const opened = await callFarcasterOpenUrl(shareUrl);
     if (!opened) {
       window.open(shareUrl, '_blank');
     }
-    
+
     closeModal();
   } catch (error) {
     console.error('Share failed');
@@ -725,7 +753,7 @@ function closeModal() {
 }
 
 // Close modal when clicking outside content
-streakCardModal.addEventListener('click', function(e) {
+streakCardModal.addEventListener('click', function (e) {
   if (e.target === streakCardModal) {
     closeModal();
   }
@@ -737,6 +765,25 @@ function formatAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', init);
+// Initialize on load - with fallback for mobile
+function safeInit() {
+  try {
+    init().catch(err => {
+      console.error('Init promise rejected:', err);
+      // Ensure UI is visible on error
+      showScreen('connect');
+    });
+  } catch (e) {
+    console.error('Init failed:', e);
+    showScreen('connect');
+  }
+}
+
+// Check if DOM is already loaded (for mobile where DOMContentLoaded might have fired)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', safeInit);
+} else {
+  // DOM already loaded, run init immediately
+  safeInit();
+}
 
