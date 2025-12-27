@@ -32,14 +32,23 @@ async function loadFarcasterSdk() {
   }
 }
 
+// Helper: add timeout to any promise
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms))
+  ]);
+}
+
 // Detect if running in Mini App using official SDK method
 async function detectMiniApp() {
   try {
     const sdk = await loadFarcasterSdk();
     if (sdk && typeof sdk.isInMiniApp === 'function') {
-      const result = await sdk.isInMiniApp();
+      // Add timeout - don't wait forever
+      const result = await withTimeout(sdk.isInMiniApp(), 2000, null);
       console.log('sdk.isInMiniApp() returned:', result);
-      return result;
+      if (result !== null) return result;
     }
   } catch (e) {
     console.log('Error checking isInMiniApp:', e);
@@ -48,9 +57,11 @@ async function detectMiniApp() {
   // Fallback: check if we're in an iframe
   try {
     if (window.self !== window.top) {
+      console.log('Fallback: detected iframe');
       return true;
     }
   } catch (e) {
+    console.log('Fallback: cross-origin detected');
     return true; // Cross-origin means we're in a frame
   }
   return false;
@@ -58,16 +69,20 @@ async function detectMiniApp() {
 
 // Safe Farcaster SDK access helpers
 async function getFarcasterProvider() {
+  console.log('getFarcasterProvider called, isInFarcasterFrame:', isInFarcasterFrame);
   if (!isInFarcasterFrame) return null;
   try {
     const sdk = await loadFarcasterSdk();
-    if (!sdk) return null;
+    if (!sdk) {
+      console.log('No SDK available');
+      return null;
+    }
 
     // Use getEthereumProvider() per official Farcaster docs
-    // https://miniapps.farcaster.xyz/docs/sdk/wallet
     if (sdk.wallet && typeof sdk.wallet.getEthereumProvider === 'function') {
-      console.log('Using sdk.wallet.getEthereumProvider()');
-      const provider = await sdk.wallet.getEthereumProvider();
+      console.log('Calling sdk.wallet.getEthereumProvider()...');
+      const provider = await withTimeout(sdk.wallet.getEthereumProvider(), 5000, null);
+      console.log('Provider result:', provider);
       return provider;
     }
 
@@ -77,6 +92,7 @@ async function getFarcasterProvider() {
       return sdk.wallet.ethProvider;
     }
 
+    console.log('No wallet provider found in SDK');
     return null;
   } catch (e) {
     console.log('getFarcasterProvider error:', e);
