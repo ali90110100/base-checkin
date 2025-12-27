@@ -8,8 +8,9 @@ let currentProvider = null;
 let isConnected = false;
 let farcasterSdk = null;
 let isInFarcasterFrame = false;
+let sdkReady = false;
 
-// Detect if running inside Farcaster/Warpcast frame
+// Detect if running inside Farcaster/Warpcast frame - IMMEDIATELY
 function detectFarcasterFrame() {
   try {
     // Check if we're in an iframe (Warpcast embeds mini apps in iframes)
@@ -28,25 +29,51 @@ function detectFarcasterFrame() {
   return false;
 }
 
-// Load Farcaster SDK safely - only when in frame
-async function loadFarcasterSdk() {
+// Detect immediately at script load
+isInFarcasterFrame = detectFarcasterFrame();
+console.log('Farcaster frame detected:', isInFarcasterFrame);
+
+// Load and initialize Farcaster SDK IMMEDIATELY if in frame
+// This MUST happen as soon as possible - before DOMContentLoaded
+async function initFarcasterSdk() {
   if (!isInFarcasterFrame) return null;
-  if (farcasterSdk !== null) return farcasterSdk || null;
   try {
+    console.log('Loading Farcaster SDK...');
     const module = await import('https://esm.sh/@farcaster/frame-sdk');
-    farcasterSdk = module.sdk || false;
-    return farcasterSdk || null;
+    const sdk = module.sdk || module.default;
+    console.log('SDK loaded:', sdk);
+
+    if (sdk) {
+      farcasterSdk = sdk;
+      // Call ready() IMMEDIATELY - this is critical!
+      if (sdk.actions && typeof sdk.actions.ready === 'function') {
+        console.log('Calling sdk.actions.ready()...');
+        await sdk.actions.ready();
+        console.log('SDK ready() called successfully');
+        sdkReady = true;
+      }
+    }
+    return sdk;
   } catch (e) {
-    farcasterSdk = false;
+    console.error('Failed to initialize Farcaster SDK:', e);
     return null;
   }
+}
+
+// Start SDK initialization immediately - don't wait for anything
+const sdkInitPromise = initFarcasterSdk();
+
+// Safe SDK access after init
+async function getLoadedSdk() {
+  await sdkInitPromise;
+  return farcasterSdk;
 }
 
 // Safe Farcaster SDK access helpers
 async function getFarcasterProvider() {
   if (!isInFarcasterFrame) return null;
   try {
-    const sdk = await loadFarcasterSdk();
+    const sdk = await getLoadedSdk();
     if (!sdk) return null;
 
     // Use ethProvider directly - this is the correct way for Mini Apps
@@ -66,7 +93,7 @@ async function getFarcasterProvider() {
 async function getFarcasterContext() {
   if (!isInFarcasterFrame) return null;
   try {
-    const sdk = await loadFarcasterSdk();
+    const sdk = await getLoadedSdk();
     if (!sdk) return null;
 
     // Context might be a promise or direct object
@@ -86,17 +113,22 @@ async function getFarcasterContext() {
   }
 }
 
+// No longer needed - ready() is called in initFarcasterSdk
 async function callFarcasterReady() {
+  // Already called during init, but try again if needed
+  if (sdkReady) return;
   if (!isInFarcasterFrame) return;
   try {
-    const sdk = await loadFarcasterSdk();
+    const sdk = await getLoadedSdk();
     if (!sdk || !sdk.actions) return;
     if (typeof sdk.actions.ready !== 'function') return;
     await sdk.actions.ready();
+    sdkReady = true;
   } catch (e) {
-    // Ignore
+    console.log('callFarcasterReady error:', e);
   }
 }
+
 
 async function callFarcasterOpenUrl(url) {
   if (!isInFarcasterFrame) return false;
@@ -168,21 +200,17 @@ async function init() {
   setupEventListeners();
 
   try {
-    // Detect environment first
-    isInFarcasterFrame = detectFarcasterFrame();
-    console.log('Running in Farcaster frame:', isInFarcasterFrame);
-
-    // Initialize Farcaster SDK with timeout (only if in frame)
-    // Use a timeout to prevent hanging on mobile
+    // Wait for SDK init to complete (already started at script load)
+    // Use timeout to ensure we don't block forever
     if (isInFarcasterFrame) {
       try {
         await Promise.race([
-          callFarcasterReady(),
+          sdkInitPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('SDK timeout')), 3000))
         ]);
-        console.log('Farcaster SDK ready');
+        console.log('SDK init completed in init()');
       } catch (sdkError) {
-        console.log('Farcaster SDK init timeout or error, continuing anyway:', sdkError);
+        console.log('SDK init timeout in init(), continuing anyway:', sdkError);
       }
     }
 
