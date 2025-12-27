@@ -33,70 +33,65 @@ function detectFarcasterFrame() {
 isInFarcasterFrame = detectFarcasterFrame();
 console.log('[FC] Farcaster frame detected:', isInFarcasterFrame);
 
-// CDN URLs for the Farcaster SDK - try multiple sources
-const SDK_URLS = [
-  'https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/+esm',
-  'https://unpkg.com/@farcaster/miniapp-sdk?module',
-  'https://esm.sh/@farcaster/miniapp-sdk',
-];
-
-// Try to load SDK from multiple CDNs
-async function loadSdkFromCdn(url) {
-  try {
-    console.log('[FC] Trying to load SDK from:', url);
-    const module = await import(url);
-    console.log('[FC] SDK module loaded:', module);
-    return module.sdk || module.default || module;
-  } catch (e) {
-    console.log('[FC] Failed to load from', url, ':', e.message);
-    return null;
-  }
-}
-
-// Load and initialize Farcaster SDK IMMEDIATELY if in frame
-async function initFarcasterSdk() {
-  if (!isInFarcasterFrame) {
-    console.log('[FC] Not in frame, skipping SDK init');
-    return null;
+// Get or wait for SDK that was loaded in HTML head
+async function getOrLoadSdk() {
+  // First check if SDK was already loaded by inline script in HTML head
+  if (window.farcasterSdk) {
+    console.log('[FC] Using globally loaded SDK from HTML head');
+    farcasterSdk = window.farcasterSdk;
+    sdkReady = window.farcasterSdkReady || false;
+    return farcasterSdk;
   }
 
-  console.log('[FC] Starting SDK initialization...');
-
-  // Try each CDN until one works
-  for (const url of SDK_URLS) {
-    const sdk = await loadSdkFromCdn(url);
-    if (sdk) {
-      console.log('[FC] SDK loaded successfully:', sdk);
-      farcasterSdk = sdk;
-
-      // Call ready() IMMEDIATELY - this is critical!
-      try {
-        if (sdk.actions && typeof sdk.actions.ready === 'function') {
-          console.log('[FC] Calling sdk.actions.ready()...');
-          await sdk.actions.ready();
-          console.log('[FC] sdk.actions.ready() called successfully!');
-          sdkReady = true;
-          return sdk;
-        } else {
-          console.log('[FC] SDK loaded but actions.ready not found, SDK structure:', Object.keys(sdk));
-        }
-      } catch (readyError) {
-        console.error('[FC] Error calling ready():', readyError);
-      }
+  // Wait a bit for the head script to complete (it might still be loading)
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    if (window.farcasterSdk) {
+      console.log('[FC] SDK became available from HTML head after waiting');
+      farcasterSdk = window.farcasterSdk;
+      sdkReady = window.farcasterSdkReady || false;
+      return farcasterSdk;
     }
   }
 
-  console.error('[FC] Failed to load SDK from all CDNs');
+  console.log('[FC] No global SDK found, trying fallback import...');
+
+  // Fallback: try to load SDK directly
+  if (!isInFarcasterFrame) {
+    console.log('[FC] Not in frame, skipping SDK import');
+    return null;
+  }
+
+  try {
+    const module = await import('https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/+esm');
+    const sdk = module.sdk || module.default;
+    if (sdk) {
+      farcasterSdk = sdk;
+      window.farcasterSdk = sdk;
+
+      // Try to call ready() if not already done
+      if (sdk.actions && typeof sdk.actions.ready === 'function' && !sdkReady) {
+        console.log('[FC] Calling ready() from fallback...');
+        await sdk.actions.ready();
+        sdkReady = true;
+        window.farcasterSdkReady = true;
+      }
+      return sdk;
+    }
+  } catch (e) {
+    console.error('[FC] Fallback SDK import failed:', e);
+  }
+
   return null;
 }
 
-// Start SDK initialization immediately - don't wait for anything
-const sdkInitPromise = initFarcasterSdk();
+// Start SDK access - don't duplicate loading, just get existing or wait
+const sdkInitPromise = getOrLoadSdk();
 
 // Safe SDK access after init
 async function getLoadedSdk() {
   await sdkInitPromise;
-  return farcasterSdk;
+  return farcasterSdk || window.farcasterSdk;
 }
 
 // Safe Farcaster SDK access helpers
