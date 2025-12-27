@@ -8,9 +8,8 @@ let currentProvider = null;
 let isConnected = false;
 let farcasterSdk = null;
 let isInFarcasterFrame = false;
-let sdkReady = false;
 
-// Detect if running inside Farcaster/Warpcast frame - IMMEDIATELY
+// Detect if running inside Farcaster/Warpcast frame
 function detectFarcasterFrame() {
   try {
     // Check if we're in an iframe (Warpcast embeds mini apps in iframes)
@@ -29,76 +28,33 @@ function detectFarcasterFrame() {
   return false;
 }
 
-// Detect immediately at script load
-isInFarcasterFrame = detectFarcasterFrame();
-console.log('[FC] Farcaster frame detected:', isInFarcasterFrame);
+// Load Farcaster SDK - use globally loaded SDK from index.html first
+async function loadFarcasterSdk() {
+  if (!isInFarcasterFrame) return null;
 
-// Get or wait for SDK that was loaded in HTML head
-async function getOrLoadSdk() {
-  // First check if SDK was already loaded by inline script in HTML head
+  // Check if SDK was loaded by the inline script in index.html
   if (window.farcasterSdk) {
-    console.log('[FC] Using globally loaded SDK from HTML head');
     farcasterSdk = window.farcasterSdk;
-    sdkReady = window.farcasterSdkReady || false;
     return farcasterSdk;
   }
 
-  // Wait a bit for the head script to complete (it might still be loading)
-  for (let i = 0; i < 10; i++) {
-    await new Promise(r => setTimeout(r, 100));
-    if (window.farcasterSdk) {
-      console.log('[FC] SDK became available from HTML head after waiting');
-      farcasterSdk = window.farcasterSdk;
-      sdkReady = window.farcasterSdkReady || false;
-      return farcasterSdk;
-    }
-  }
-
-  console.log('[FC] No global SDK found, trying fallback import...');
-
-  // Fallback: try to load SDK directly
-  if (!isInFarcasterFrame) {
-    console.log('[FC] Not in frame, skipping SDK import');
+  // If not found, try loading directly
+  if (farcasterSdk !== null) return farcasterSdk || null;
+  try {
+    const module = await import('https://esm.sh/@farcaster/miniapp-sdk');
+    farcasterSdk = module.sdk || false;
+    return farcasterSdk || null;
+  } catch (e) {
+    farcasterSdk = false;
     return null;
   }
-
-  try {
-    const module = await import('https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/+esm');
-    const sdk = module.sdk || module.default;
-    if (sdk) {
-      farcasterSdk = sdk;
-      window.farcasterSdk = sdk;
-
-      // Try to call ready() if not already done
-      if (sdk.actions && typeof sdk.actions.ready === 'function' && !sdkReady) {
-        console.log('[FC] Calling ready() from fallback...');
-        await sdk.actions.ready();
-        sdkReady = true;
-        window.farcasterSdkReady = true;
-      }
-      return sdk;
-    }
-  } catch (e) {
-    console.error('[FC] Fallback SDK import failed:', e);
-  }
-
-  return null;
-}
-
-// Start SDK access - don't duplicate loading, just get existing or wait
-const sdkInitPromise = getOrLoadSdk();
-
-// Safe SDK access after init
-async function getLoadedSdk() {
-  await sdkInitPromise;
-  return farcasterSdk || window.farcasterSdk;
 }
 
 // Safe Farcaster SDK access helpers
 async function getFarcasterProvider() {
   if (!isInFarcasterFrame) return null;
   try {
-    const sdk = await getLoadedSdk();
+    const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
 
     // Use ethProvider directly - this is the correct way for Mini Apps
@@ -118,7 +74,7 @@ async function getFarcasterProvider() {
 async function getFarcasterContext() {
   if (!isInFarcasterFrame) return null;
   try {
-    const sdk = await getLoadedSdk();
+    const sdk = await loadFarcasterSdk();
     if (!sdk) return null;
 
     // Context might be a promise or direct object
@@ -138,22 +94,17 @@ async function getFarcasterContext() {
   }
 }
 
-// No longer needed - ready() is called in initFarcasterSdk
 async function callFarcasterReady() {
-  // Already called during init, but try again if needed
-  if (sdkReady) return;
   if (!isInFarcasterFrame) return;
   try {
-    const sdk = await getLoadedSdk();
+    const sdk = await loadFarcasterSdk();
     if (!sdk || !sdk.actions) return;
     if (typeof sdk.actions.ready !== 'function') return;
     await sdk.actions.ready();
-    sdkReady = true;
   } catch (e) {
-    console.log('callFarcasterReady error:', e);
+    // Ignore
   }
 }
-
 
 async function callFarcasterOpenUrl(url) {
   if (!isInFarcasterFrame) return false;
@@ -217,27 +168,13 @@ const closeModalBtn = document.getElementById('close-modal-btn');
 
 // Initialize app
 async function init() {
-  // Ensure UI is visible immediately - prevent blue screen on mobile
-  document.body.style.visibility = 'visible';
-  document.body.style.opacity = '1';
-
-  // Setup event listeners first so UI is interactive even if SDK fails
-  setupEventListeners();
-
   try {
-    // Wait for SDK init to complete (already started at script load)
-    // Use timeout to ensure we don't block forever
-    if (isInFarcasterFrame) {
-      try {
-        await Promise.race([
-          sdkInitPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('SDK timeout')), 3000))
-        ]);
-        console.log('SDK init completed in init()');
-      } catch (sdkError) {
-        console.log('SDK init timeout in init(), continuing anyway:', sdkError);
-      }
-    }
+    // Detect environment first
+    isInFarcasterFrame = detectFarcasterFrame();
+    console.log('Running in Farcaster frame:', isInFarcasterFrame);
+
+    // Initialize Farcaster SDK (only if in frame)
+    await callFarcasterReady();
 
     // Check for profile view mode
     const urlParams = new URLSearchParams(window.location.search);
@@ -247,6 +184,9 @@ async function init() {
       showProfileScreen(profileUser);
       return;
     }
+
+    // Setup event listeners
+    setupEventListeners();
 
     // Try to restore session from localStorage first
     const savedWallet = localStorage.getItem('connected_wallet');
@@ -261,43 +201,30 @@ async function init() {
       return;
     }
 
-    // In Farcaster, try to auto-connect from context with timeout
+    // In Farcaster, try to auto-connect from context
     if (isInFarcasterFrame) {
-      try {
-        const contextPromise = getFarcasterContext();
-        const context = await Promise.race([
-          contextPromise,
-          new Promise((resolve) => setTimeout(() => resolve(null), 2000))
-        ]);
-        console.log('Farcaster context on init:', context);
+      const context = await getFarcasterContext();
+      console.log('Farcaster context on init:', context);
 
-        if (context && context.user) {
-          const address = context.user.connectedAddress ||
-            (context.user.verifiedAddresses && context.user.verifiedAddresses[0]);
-          if (address) {
-            currentWallet = address;
-            try {
-              currentProvider = await getProvider();
-            } catch (e) {
-              console.log('Could not get provider');
-            }
-            localStorage.setItem('connected_wallet', currentWallet);
-            isConnected = true;
-            showDashboard();
-            return;
+      if (context && context.user) {
+        const address = context.user.connectedAddress ||
+          (context.user.verifiedAddresses && context.user.verifiedAddresses[0]);
+        if (address) {
+          currentWallet = address;
+          try {
+            currentProvider = await getProvider();
+          } catch (e) {
+            console.log('Could not get provider');
           }
+          localStorage.setItem('connected_wallet', currentWallet);
+          isConnected = true;
+          showDashboard();
+          return;
         }
-      } catch (contextError) {
-        console.log('Could not get Farcaster context:', contextError);
       }
     }
-
-    // Default: show connect screen
-    showScreen('connect');
   } catch (error) {
     console.error('Failed to initialize:', error);
-    // Always show connect screen on error
-    showScreen('connect');
   }
 }
 
@@ -818,25 +745,6 @@ function formatAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-// Initialize on load - with fallback for mobile
-function safeInit() {
-  try {
-    init().catch(err => {
-      console.error('Init promise rejected:', err);
-      // Ensure UI is visible on error
-      showScreen('connect');
-    });
-  } catch (e) {
-    console.error('Init failed:', e);
-    showScreen('connect');
-  }
-}
-
-// Check if DOM is already loaded (for mobile where DOMContentLoaded might have fired)
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', safeInit);
-} else {
-  // DOM already loaded, run init immediately
-  safeInit();
-}
+// Initialize on load
+document.addEventListener('DOMContentLoaded', init);
 

@@ -36,9 +36,6 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Ensure visibility on mobile - prevent blue screen in Farcaster */
-  visibility: visible !important;
-  opacity: 1 !important;
 }
 
 #app {

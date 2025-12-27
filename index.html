@@ -4,8 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
-  <meta name="fc:miniapp" content="vNext">
-  <meta name="base:app_id" content="[WILL BE ADDED LATER]">
+  <meta name="fc:frame" content="vNext">
   <meta name="og:title" content="Base Check-In">
   <meta name="og:description" content="Daily proof of human for Base wallet users">
   <title>Base Check-In</title>
@@ -13,44 +12,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-
-  <!-- Farcaster SDK - load synchronously in head for mini app support -->
-  <script type="module">
-    // Immediately try to load SDK and call ready()
-    // This runs as early as possible when page loads
-    (async function () {
-      try {
-        // Check if we're in an iframe (Warpcast embeds mini apps in iframes)
-        let isInFrame = false;
-        try {
-          isInFrame = window.self !== window.top;
-        } catch (e) {
-          isInFrame = true; // Cross-origin means we're in a frame
-        }
-
-        console.log('[FC-INIT] In frame:', isInFrame);
-
-        if (isInFrame) {
-          console.log('[FC-INIT] Loading SDK...');
-          const module = await import('https://cdn.jsdelivr.net/npm/@farcaster/miniapp-sdk@latest/+esm');
-          const sdk = module.sdk || module.default;
-          console.log('[FC-INIT] SDK loaded:', sdk);
-
-          // Store globally for game.js to use
-          window.farcasterSdk = sdk;
-
-          if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-            console.log('[FC-INIT] Calling ready()...');
-            await sdk.actions.ready();
-            console.log('[FC-INIT] ready() called successfully!');
-            window.farcasterSdkReady = true;
-          }
-        }
-      } catch (e) {
-        console.error('[FC-INIT] SDK init error:', e);
-      }
-    })();
-  </script>
 </head>
 
 <body>
@@ -152,6 +113,18 @@
       <p>Built on Base • No tokens • No payments</p>
     </footer>
   </div>
+
+  <!-- Farcaster SDK - MUST call sdk.actions.ready() per official docs -->
+  <script type="module">
+    import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
+
+    // Store SDK globally for game.js to use
+    window.farcasterSdk = sdk;
+
+    // Call ready() immediately to hide splash screen
+    // This is CRITICAL - without this, users see infinite loading
+    sdk.actions.ready();
+  </script>
 
   <script type="module" src="game.js"></script>
 </body>
