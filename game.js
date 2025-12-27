@@ -9,45 +9,51 @@ let isConnected = false;
 let farcasterSdk = null;
 let isInFarcasterFrame = false;
 
-// Detect if running inside Farcaster/Warpcast frame
-function detectFarcasterFrame() {
-  try {
-    // Check if we're in an iframe (Warpcast embeds mini apps in iframes)
-    if (window.self !== window.top) {
-      return true;
-    }
-    // Check for Farcaster-specific URL params
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('fc_frame') || params.has('fid')) {
-      return true;
-    }
-  } catch (e) {
-    // If we can't access window.top due to cross-origin, we're likely in a frame
-    return true;
-  }
-  return false;
-}
-
-// Load Farcaster SDK - use globally loaded SDK from index.html first
+// Load Farcaster SDK - always try to load it first
 async function loadFarcasterSdk() {
-  if (!isInFarcasterFrame) return null;
-
   // Check if SDK was loaded by the inline script in index.html
   if (window.farcasterSdk) {
     farcasterSdk = window.farcasterSdk;
     return farcasterSdk;
   }
 
-  // If not found, try loading directly
+  // If already loaded, return it
   if (farcasterSdk !== null) return farcasterSdk || null;
+
+  // Try loading directly
   try {
     const module = await import('https://esm.sh/@farcaster/miniapp-sdk');
-    farcasterSdk = module.sdk || false;
-    return farcasterSdk || null;
+    farcasterSdk = module.sdk || null;
+    return farcasterSdk;
   } catch (e) {
+    console.log('Failed to load Farcaster SDK:', e);
     farcasterSdk = false;
     return null;
   }
+}
+
+// Detect if running in Mini App using official SDK method
+async function detectMiniApp() {
+  try {
+    const sdk = await loadFarcasterSdk();
+    if (sdk && typeof sdk.isInMiniApp === 'function') {
+      const result = await sdk.isInMiniApp();
+      console.log('sdk.isInMiniApp() returned:', result);
+      return result;
+    }
+  } catch (e) {
+    console.log('Error checking isInMiniApp:', e);
+  }
+
+  // Fallback: check if we're in an iframe
+  try {
+    if (window.self !== window.top) {
+      return true;
+    }
+  } catch (e) {
+    return true; // Cross-origin means we're in a frame
+  }
+  return false;
 }
 
 // Safe Farcaster SDK access helpers
@@ -177,9 +183,9 @@ const closeModalBtn = document.getElementById('close-modal-btn');
 // Initialize app
 async function init() {
   try {
-    // Detect environment first
-    isInFarcasterFrame = detectFarcasterFrame();
-    console.log('Running in Farcaster frame:', isInFarcasterFrame);
+    // Detect environment using official SDK method
+    isInFarcasterFrame = await detectMiniApp();
+    console.log('Running in Mini App:', isInFarcasterFrame);
 
     // Initialize Farcaster SDK (only if in frame)
     await callFarcasterReady();
